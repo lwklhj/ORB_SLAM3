@@ -51,6 +51,15 @@ MESSAGE(${OpenCV_VERSION})
 #find_package(Eigen3 REQUIRED)
 find_package(Pangolin REQUIRED)
 
+# cuda
+find_package(CUDA REQUIRED)
+include_directories(/usr/local/cuda/include)
+link_directories(/usr/local/cuda/lib64)
+
+# tensorrt
+include_directories(/usr/include/${CMAKE_LIBRARY_ARCHITECTURE})
+link_directories(/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE})
+
 include_directories(
 ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
