@@ -127,6 +127,7 @@ include/MLPnPsolver.h
 include/TwoViewReconstruction.h
 include/SuperPoint.h
 include/data_body.h
+include/logging.h
 include/tools.h)
 
 
