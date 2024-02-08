@@ -139,6 +139,9 @@ ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 -lboost_serialization
 -lcrypto
+-lnvinfer
+-lnvinfer_plugin
+-lcudart
 )
 
 
