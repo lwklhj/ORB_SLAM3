@@ -1462,11 +1462,7 @@ void LoopClosing::MergeLocal()
 
 
     //TODO Time test
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeStartTransfMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeStartTransfMerge = std::chrono::monotonic_clock::now();
-#endif
     for(KeyFrame* pKFi : spLocalWindowKFs)
     {
         if(!pKFi || pKFi->isBad())
@@ -1566,21 +1562,13 @@ void LoopClosing::MergeLocal()
         //pCurrentMap->EraseMapPoint(pMPi);
         //pMPi->UpdateNormalAndDepth();
     }
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeFinishTransfMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeFinishTransfMerge = std::chrono::monotonic_clock::now();
-#endif
     std::chrono::duration<double,std::milli> timeTransfMerge = timeFinishTransfMerge - timeStartTransfMerge; // Time in milliseconds
     Verbose::PrintMess("MERGE-VISUAL: TRANSF ms: " + to_string(timeTransfMerge.count()), Verbose::VERBOSITY_DEBUG);
 
 
     //TODO Time test
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeStartCritMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeStartCritMerge = std::chrono::monotonic_clock::now();
-#endif
     {
         unique_lock<mutex> currentLock(pCurrentMap->mMutexMapUpdate); // We update the current map with the Merge information
         unique_lock<mutex> mergeLock(pMergeMap->mMutexMapUpdate); // We remove the Kfs and MPs in the merged area from the old map
@@ -1629,11 +1617,7 @@ void LoopClosing::MergeLocal()
         pMergeMap->ChangeId(pCurrentMap->GetId());
     }
 
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeFinishCritMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeFinishCritMerge = std::chrono::monotonic_clock::now();
-#endif
     std::chrono::duration<double,std::milli> timeCritMerge = timeFinishCritMerge - timeStartCritMerge; // Time in milliseconds
     Verbose::PrintMess("MERGE-VISUAL: New current map: " + to_string(pMergeMap->GetId()), Verbose::VERBOSITY_DEBUG);
     Verbose::PrintMess("MERGE-VISUAL: CRITICAL ms: " + to_string(timeCritMerge.count()), Verbose::VERBOSITY_DEBUG);
@@ -1670,22 +1654,14 @@ void LoopClosing::MergeLocal()
 
 
     //TODO Time test
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeStartFuseMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeStartFuseMerge = std::chrono::monotonic_clock::now();
-#endif
 
     // Project MapPoints observed in the neighborhood of the merge keyframe
     // into the current keyframe and neighbors using corrected poses.
     // Fuse duplications.
     SearchAndFuse(vCorrectedSim3, vpCheckFuseMapPoint);
 
-#ifdef COMPILEDWITHC11
     std::chrono::steady_clock::time_point timeFinishFuseMerge = std::chrono::steady_clock::now();
-#else
-    std::chrono::monotonic_clock::time_point timeFinishFuseMerge = std::chrono::monotonic_clock::now();
-#endif
     std::chrono::duration<double,std::milli> timeFuseMerge = timeFinishFuseMerge - timeStartFuseMerge; // Time in milliseconds
     Verbose::PrintMess("MERGE-VISUAL: FUSE DUPLICATED ms: " + to_string(timeFuseMerge.count()), Verbose::VERBOSITY_DEBUG);
 
