@@ -86,6 +86,8 @@ src/CameraModels/Pinhole.cpp
 src/CameraModels/KannalaBrandt8.cpp
 src/OptimizableTypes.cpp
 src/MLPnPsolver.cpp
+src/TwoViewReconstruction.cc
+src/SuperPoint.cpp
 include/System.h
 include/Tracking.h
 include/LocalMapping.h
@@ -114,7 +116,9 @@ include/CameraModels/KannalaBrandt8.h
 include/OptimizableTypes.h
 include/MLPnPsolver.h
 include/TwoViewReconstruction.h
-src/TwoViewReconstruction.cc)
+include/SuperPoint.h
+include/data_body.h
+include/tools.h)
 
 
 target_link_libraries(${PROJECT_NAME}

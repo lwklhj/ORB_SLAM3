@@ -465,6 +465,10 @@ namespace ORB_SLAM3
             umax[v] = v0;
             ++v0;
         }
+        
+        // Initialise deep learning model
+        superpoint = SuperPoint();
+        superpoint.initial_point_model();
     }
 
     static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
@@ -862,60 +866,23 @@ namespace ORB_SLAM3
         Mat image = _image.getMat();
         assert(image.type() == CV_8UC1 );
 
-        // Pre-compute the scale pyramid
-        ComputePyramid(image);
+        // temp vectors
+        vector<cv::KeyPoint> keypoints;
+        Mat desc;
+        superpoint.forward(image, keypoints, desc);
 
-        vector < vector<KeyPoint> > allKeypoints;
-        ComputeKeyPointsOctTree(allKeypoints);
-
-        Mat descriptors;
-
-        int nkeypoints = 0;
-        for (int level = 0; level < nlevels; ++level)
-            nkeypoints += (int)allKeypoints[level].size();
-        if( nkeypoints == 0 )
-            _descriptors.release();
-        else
-        {
-            _descriptors.create(nkeypoints, 32, CV_8U);
-            descriptors = _descriptors.getMat();
-        }
-
+        int nkeypoints = keypoints.size();
         _keypoints = vector<cv::KeyPoint>(nkeypoints);
-
-        int offset = 0;
-        //Modified for speeding up stereo fisheye matching
         int monoIndex = 0, stereoIndex = nkeypoints-1;
-        for (int level = 0; level < nlevels; ++level)
-        {
-            vector<KeyPoint>& keypoints = allKeypoints[level];
-            int nkeypointsLevel = (int)keypoints.size();
+        int i = 0;
 
-            if(nkeypointsLevel==0)
-                continue;
-
-            // preprocess the resized image
-            Mat workingMat = mvImagePyramid[level].clone();
-            GaussianBlur(workingMat, workingMat, Size(7, 7), 2, 2, BORDER_REFLECT_101);
-
-            // Compute the descriptors
-            //Mat desc = descriptors.rowRange(offset, offset + nkeypointsLevel);
-            Mat desc = cv::Mat(nkeypointsLevel, 32, CV_8U);
-            computeDescriptors(workingMat, keypoints, desc, pattern);
-
-            offset += nkeypointsLevel;
-
-
-            float scale = mvScaleFactor[level]; //getScale(level, firstLevel, scaleFactor);
-            int i = 0;
+        if(nkeypoints == 0)
+            _descriptors.release();
+        else {
+            _descriptors.create(nkeypoints, 256, CV_32F);
+            Mat descriptors = _descriptors.getMat();
             for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
-                         keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint){
-
-                // Scale keypoint coordinates
-                if (level != 0){
-                    keypoint->pt *= scale;
-                }
-
+                        keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint){
                 if(keypoint->pt.x >= vLappingArea[0] && keypoint->pt.x <= vLappingArea[1]){
                     _keypoints.at(stereoIndex) = (*keypoint);
                     desc.row(i).copyTo(descriptors.row(stereoIndex));

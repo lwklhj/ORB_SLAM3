@@ -106,6 +106,9 @@ protected:
     std::vector<float> mvInvScaleFactor;    
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
+
+private:
+    SuperPoint superpoint;
 };
 
 } //namespace ORB_SLAM
