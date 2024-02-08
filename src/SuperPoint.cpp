@@ -296,7 +296,7 @@ SuperPoint::SuperPoint()
     _point_lm_params.fp16 = false;
     _point_lm_params.batch_size = 1;
     _point_lm_params.seria = false;
-    _point_lm_params.point_weight_file = "engines/superpoint_v1.engine";
+    _point_lm_params.point_weight_file = "./benchmarks/orbslam3_sp_trt/src/original/engines/superpoint_v1.engine";
     // _point_lm_params.input_h = 240;
     // _point_lm_params.input_w = 320;
     _point_lm_params.scores_thresh = 0.01;

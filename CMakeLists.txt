@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(ORB_SLAM3)
+project(orbslam3_sp_trt)
 
 SET(CMAKE_BUILD_TYPE Release)
 
@@ -197,7 +197,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 #target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
 
 add_library(${PROJECT_NAME}-original SHARED
-        orbslam3_library.cpp
+        orbslam3_sp_trt_library.cpp
         )
 
 target_link_libraries(${PROJECT_NAME}-original
