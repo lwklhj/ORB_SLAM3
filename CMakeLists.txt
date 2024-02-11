@@ -31,7 +31,7 @@ else()
 endif()
 
 add_subdirectory(Thirdparty/g2o)
-add_subdirectory(Thirdparty/DBoW2)
+add_subdirectory(Thirdparty/DBow3)
 
 
 #LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
@@ -135,7 +135,7 @@ target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
-${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
+${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/DBow3/lib/libDBoW3.so
 ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 -lboost_serialization
 -lcrypto

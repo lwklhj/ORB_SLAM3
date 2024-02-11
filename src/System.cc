@@ -92,13 +92,14 @@ namespace ORB_SLAM3
         cout << endl << "Loading ORB Vocabulary. This could take a while..." << endl;
 
         mpVocabulary = new ORBVocabulary();
-        bool bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
-        if(!bVocLoad)
-        {
-            cerr << "Wrong path to vocabulary. " << endl;
-            cerr << "Falied to open at: " << strVocFile << endl;
-            exit(-1);
-        }
+        // bool bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
+        // if(!bVocLoad)
+        // {
+        //     cerr << "Wrong path to vocabulary. " << endl;
+        //     cerr << "Falied to open at: " << strVocFile << endl;
+        //     exit(-1);
+        // }
+        mpVocabulary->load(strVocFile);
         cout << "Vocabulary loaded!" << endl << endl;
 
         //Create KeyFrame Database
