@@ -32,8 +32,8 @@ KeyFrameTrajectory.txt
 CameraTrajectory.txt
 kf_*.txt
 f_*.txt
-Thirdparty/DBoW2/build/
-Thirdparty/DBoW2/lib/
+Thirdparty/DBow3/build/
+Thirdparty/DBow3/lib/
 Thirdparty/g2o/build/
 Thirdparty/g2o/config.h
 Thirdparty/g2o/lib/
