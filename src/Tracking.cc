@@ -48,9 +48,9 @@ namespace ORB_SLAM3
     Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Atlas *pAtlas, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const string &_nameSeq):
         mState(NO_IMAGES_YET), mSensor(sensor), mTrackedFr(0), mbStep(false),
         mbOnlyTracking(false), mbMapUpdated(false), mbVO(false), mpMapDrawer(pMapDrawer),mpORBVocabulary(pVoc), mpKeyFrameDB(pKFDB),
-        mpInitializer(static_cast<Initializer*>(nullptr)), mpSystem(pSys), mpViewer(nullptr), mpFrameDrawer(pFrameDrawer),
+        mpInitializer(static_cast<Initializer*>(nullptr)), mpSystem(pSys), mpViewer(nullptr), bStepByStep(false), mpFrameDrawer(pFrameDrawer),
         mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
-        mnFirstFrameId(0), mnInitialFrameId(0), mbCreatedMap(false), mpCamera2(nullptr)
+        mnFirstFrameId(0), mnInitialFrameId(0), mbCreatedMap(false), mpCamera2(nullptr), mpLastKeyFrame(static_cast<KeyFrame*>(NULL)), mpORBextractorLeft(nullptr), mpORBextractorRight(nullptr), mpIniORBextractor(nullptr)
     {
         if(strSettingPath.empty())
             return;

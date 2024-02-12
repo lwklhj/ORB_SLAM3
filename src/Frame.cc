@@ -170,8 +170,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mVw = cv::Mat::zeros(3,1,CV_32F);
     }
 
-    AssignFeaturesToGrid();
-
     mpMutexImu = new std::mutex();
 
     //Set no stereo fisheye information
@@ -184,6 +182,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvStereo3Dpoints = vector<cv::Mat>(0);
     monoLeft = -1;
     monoRight = -1;
+
+    AssignFeaturesToGrid();
 }
 
 Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera,Frame* pPrevF, const IMU::Calib &ImuCalib)
