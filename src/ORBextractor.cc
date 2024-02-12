@@ -896,6 +896,7 @@ namespace ORB_SLAM3
                 i++;
             }
         }
+        mvImagePyramid[0] = image;
         return monoIndex;
     }
 

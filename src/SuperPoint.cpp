@@ -300,7 +300,7 @@ SuperPoint::SuperPoint()
     // _point_lm_params.input_h = 240;
     // _point_lm_params.input_w = 320;
     _point_lm_params.scores_thresh = 0.01;
-    _point_lm_params.border = 4;
+    _point_lm_params.border = 16;
 }
 
 SuperPoint::~SuperPoint()
