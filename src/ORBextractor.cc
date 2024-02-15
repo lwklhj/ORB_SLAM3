@@ -867,11 +867,11 @@ namespace ORB_SLAM3
         assert(image.type() == CV_8UC1 );
 
         // temp vectors
-        detector.detect(image, false);
+        detector.detect(image, true);
         vector<cv::KeyPoint> keypoints;
         detector.getKeyPoints(keypoints, 0.015, image.rows, image.cols, 16);
         Mat desc;
-        detector.computeDescriptors(desc, keypoints);
+        detector.computeDescriptors(desc, keypoints, true);
 
         int nkeypoints = keypoints.size();
         _keypoints = vector<cv::KeyPoint>(nkeypoints);

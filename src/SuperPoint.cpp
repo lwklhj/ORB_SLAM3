@@ -145,7 +145,7 @@ namespace ORB_SLAM3
         keypoints = keypoints_nms;
     }
 
-    void SPDetector::computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints)
+    void SPDetector::computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints, bool cuda)
     {
         int h = mProb.squeeze(0).size(0);
         int w = mProb.squeeze(0).size(1);
@@ -163,6 +163,12 @@ namespace ORB_SLAM3
         grid[0][0].slice(1, 0, 1) = 2.0 * fkpts.slice(1, 1, 2) / w - 1; // x
         grid[0][0].slice(1, 1, 2) = 2.0 * fkpts.slice(1, 0, 1) / h - 1; // y
 
+        if(cuda) {
+            grid = grid.to(torch::kCUDA);
+        }
+        else {
+            mDesc = mDesc.to(torch::kCPU);
+        }
         auto desc = torch::grid_sampler(mDesc, grid, 0, 0, true); // [1, 256, 1, n_keypoints]
         desc = desc.squeeze(0).squeeze(1);                  // [256, n_keypoints]
 

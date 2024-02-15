@@ -46,7 +46,7 @@ namespace ORB_SLAM3
     void build_model();
     void detect(cv::Mat &image, bool cuda);
     void getKeyPoints(std::vector<cv::KeyPoint> &keypoints, float threshold, int height, int width, int border);
-    void computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints);
+    void computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints, bool cuda);
     void simpleNMS(torch::Tensor &scores, int nms_radius);
 
   private:
