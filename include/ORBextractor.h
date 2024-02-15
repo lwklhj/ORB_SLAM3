@@ -109,7 +109,7 @@ protected:
     std::vector<float> mvInvLevelSigma2;
 
 private:
-    SuperPoint superpoint;
+    SPDetector detector;
 };
 
 } //namespace ORB_SLAM

@@ -1,37 +1,60 @@
+#ifndef SUPERPOINT_H
+#define SUPERPOINT_H
+
+#include <torch/torch.h>
 #include <opencv2/opencv.hpp>
-#include "data_body.h"
-#include <NvInferPlugin.h>
 
-#ifndef SuperPoint_H
-#define SuperPoint_H
+#include <vector>
 
-class SuperPoint
+#ifdef EIGEN_MPL2_ONLY
+#undef EIGEN_MPL2_ONLY
+#endif
+
+namespace ORB_SLAM3
 {
-public:
+
+  struct SuperPoint : torch::nn::Module
+  {
     SuperPoint();
-    ~SuperPoint();
-    bool initial_point_model();
-    size_t forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints, cv::Mat &descriptors);
 
-private:
-    template <typename T>
-    using _unique_ptr = std::unique_ptr<T, InferDeleter>;
-    std::shared_ptr<nvinfer1::ICudaEngine> _engine_ptr;
-    std::shared_ptr<nvinfer1::IExecutionContext> _context_ptr;
-    point_lm_params _point_lm_params;
+    std::vector<torch::Tensor> forward(torch::Tensor x);
 
-private:
-    bool build_model();
-    void imnormalize(cv::Mat &img, float *blob);
-    void* buffers[3];
-    float *blob;
-    float *scores_output;
-    float *descriptors_output;
-    cudaStream_t stream_device;
-    cudaStream_t stream_input;
-    cudaStream_t stream_scores;
-    cudaStream_t stream_descriptors;
-    bool streamsAreCreated;
-};
+    torch::nn::Conv2d conv1a;
+    torch::nn::Conv2d conv1b;
+
+    torch::nn::Conv2d conv2a;
+    torch::nn::Conv2d conv2b;
+
+    torch::nn::Conv2d conv3a;
+    torch::nn::Conv2d conv3b;
+
+    torch::nn::Conv2d conv4a;
+    torch::nn::Conv2d conv4b;
+
+    torch::nn::Conv2d convPa;
+    torch::nn::Conv2d convPb;
+
+    // descriptor
+    torch::nn::Conv2d convDa;
+    torch::nn::Conv2d convDb;
+  };
+
+  class SPDetector
+  {
+  public:
+    SPDetector();
+    void build_model();
+    void detect(cv::Mat &image, bool cuda);
+    void getKeyPoints(std::vector<cv::KeyPoint> &keypoints, float threshold, int height, int width, int border);
+    void computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints);
+    void simpleNMS(torch::Tensor &scores, int nms_radius);
+
+  private:
+    std::shared_ptr<SuperPoint> model;
+    torch::Tensor mProb;
+    torch::Tensor mDesc;
+  };
+
+} // ORB_SLAM
 
 #endif

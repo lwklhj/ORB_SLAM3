@@ -1,3 +1,13 @@
+echo "Configuring and building Thirdparty/libtorch ..."
+
+cd Thirdparty
+if [ ! -d libtorch ]; then
+  wget https://download.pytorch.org/libtorch/cu118/libtorch-cxx11-abi-shared-with-deps-2.2.0%2Bcu118.zip \
+  && unzip libtorch-cxx11-abi-shared-with-deps-2.2.0+cu121.zip \
+  && rm libtorch-cxx11-abi-shared-with-deps-2.2.0+cu121.zip
+fi
+cd ../
+
 echo "Configuring and building Thirdparty/DBow3 ..."
 
 cd Thirdparty/DBow3

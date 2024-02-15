@@ -467,8 +467,8 @@ namespace ORB_SLAM3
         }
         
         // Initialise deep learning model
-        superpoint = SuperPoint();
-        superpoint.initial_point_model();
+        detector = SPDetector();
+        detector.build_model();
     }
 
     static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
@@ -867,9 +867,11 @@ namespace ORB_SLAM3
         assert(image.type() == CV_8UC1 );
 
         // temp vectors
+        detector.detect(image, false);
         vector<cv::KeyPoint> keypoints;
+        detector.getKeyPoints(keypoints, 0.015, image.rows, image.cols, 16);
         Mat desc;
-        superpoint.forward(image, keypoints, desc);
+        detector.computeDescriptors(desc, keypoints);
 
         int nkeypoints = keypoints.size();
         _keypoints = vector<cv::KeyPoint>(nkeypoints);

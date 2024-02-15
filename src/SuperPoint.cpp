@@ -1,327 +1,198 @@
-#include <NvInfer.h>
-#include "cuda_runtime_api.h"
-#include <math.h>
-
 #include "SuperPoint.h"
 
-#include "logging.h"
-#include <memory>
-#include <fstream>
-#include "tools.h"
-
-#include <algorithm>
-#include <chrono>
-
-static Logger gLogger;
-
-bool SuperPoint::build_model()
+namespace ORB_SLAM3
 {
-    initLibNvInferPlugins(&gLogger.getTRTLogger(), "");
-    nvinfer1::IRuntime *runtime = nvinfer1::createInferRuntime(gLogger);
-    if (!runtime)
+
+    const int c1 = 64;
+    const int c2 = 64;
+    const int c3 = 128;
+    const int c4 = 128;
+    const int c5 = 256;
+    const int d1 = 256;
+
+    SuperPoint::SuperPoint()
+        : conv1a(torch::nn::Conv2dOptions(1, c1, 3).stride(1).padding(1)),
+          conv1b(torch::nn::Conv2dOptions(c1, c1, 3).stride(1).padding(1)),
+
+          conv2a(torch::nn::Conv2dOptions(c1, c2, 3).stride(1).padding(1)),
+          conv2b(torch::nn::Conv2dOptions(c2, c2, 3).stride(1).padding(1)),
+
+          conv3a(torch::nn::Conv2dOptions(c2, c3, 3).stride(1).padding(1)),
+          conv3b(torch::nn::Conv2dOptions(c3, c3, 3).stride(1).padding(1)),
+
+          conv4a(torch::nn::Conv2dOptions(c3, c4, 3).stride(1).padding(1)),
+          conv4b(torch::nn::Conv2dOptions(c4, c4, 3).stride(1).padding(1)),
+
+          convPa(torch::nn::Conv2dOptions(c4, c5, 3).stride(1).padding(1)),
+          convPb(torch::nn::Conv2dOptions(c5, 65, 1).stride(1).padding(0)),
+
+          convDa(torch::nn::Conv2dOptions(c4, c5, 3).stride(1).padding(1)),
+          convDb(torch::nn::Conv2dOptions(c5, d1, 1).stride(1).padding(0))
+
     {
-        return false;
+        register_module("conv1a", conv1a);
+        register_module("conv1b", conv1b);
+
+        register_module("conv2a", conv2a);
+        register_module("conv2b", conv2b);
+
+        register_module("conv3a", conv3a);
+        register_module("conv3b", conv3b);
+
+        register_module("conv4a", conv4a);
+        register_module("conv4b", conv4b);
+
+        register_module("convPa", convPa);
+        register_module("convPb", convPb);
+
+        register_module("convDa", convDa);
+        register_module("convDb", convDb);
     }
 
-    char *model_deser_buffer{nullptr};
-    const std::string engine_file_path(_point_lm_params.point_weight_file);
-    std::ifstream ifs;
-    int ser_length;
-    ifs.open(engine_file_path.c_str(), std::ios::in | std::ios::binary);
-    if (ifs.is_open())
+    std::vector<torch::Tensor> SuperPoint::forward(torch::Tensor x)
     {
-        ifs.seekg(0, std::ios::end);
-        ser_length = ifs.tellg();
-        ifs.seekg(0, std::ios::beg);
-        model_deser_buffer = new char[ser_length];
-        ifs.read(model_deser_buffer, ser_length);
-        ifs.close();
-    }
-    else
-    {
-        return false;
-    }
 
-    _engine_ptr = std::shared_ptr<nvinfer1::ICudaEngine>(runtime->deserializeCudaEngine(model_deser_buffer, ser_length), InferDeleter());
-    if (!_engine_ptr)
-    {
-        return false;
-    }
-    else
-    {
-        std::cout << "load engine successed!" << std::endl;
-    }
-    delete[] model_deser_buffer;
+        x = torch::relu(conv1a->forward(x));
+        x = torch::relu(conv1b->forward(x));
+        x = torch::max_pool2d(x, 2, 2);
 
-    _context_ptr = std::shared_ptr<nvinfer1::IExecutionContext>(_engine_ptr->createExecutionContext(), InferDeleter());
-    if (!_context_ptr)
-    {
-        return false;
-    }
-    return true;
-}
+        x = torch::relu(conv2a->forward(x));
+        x = torch::relu(conv2b->forward(x));
+        x = torch::max_pool2d(x, 2, 2);
 
-bool SuperPoint::initial_point_model()
-{
-    bool ret = build_model();
-    if (!ret)
-    {
-        std::cout << "Failed to build superpoint model!" << std::endl;
-    }
-    return ret;
-}
+        x = torch::relu(conv3a->forward(x));
+        x = torch::relu(conv3b->forward(x));
+        x = torch::max_pool2d(x, 2, 2);
 
-size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints, cv::Mat &descriptors)
-{
-    // Input size
-    int dummy_input_size = srcimg.rows * srcimg.cols;
-    // Score size
-    int scores_size = 1 * srcimg.rows * srcimg.cols;
-    // Descriptors size
-    int desc_fea_c = 256;
-    int desc_fea_h = srcimg.rows / 8;
-    int desc_fea_w = srcimg.cols / 8;
-    int descriptors_size = 1 * desc_fea_c * desc_fea_h * desc_fea_w;
+        x = torch::relu(conv4a->forward(x));
+        x = torch::relu(conv4b->forward(x));
 
-    // Get indexes
-    const int dummy_inputIndex = _engine_ptr->getBindingIndex(_point_lm_params.input_names[0].c_str());
-    const int scores_outputIndex = _engine_ptr->getBindingIndex(_point_lm_params.output_names[0].c_str());
-    const int descriptors_outputIndex = _engine_ptr->getBindingIndex(_point_lm_params.output_names[1].c_str());
-    assert(_engine_ptr->getBindingDataType(dummy_inputIndex) == nvinfer1::DataType::kHALF);
-    assert(_engine_ptr->getBindingDataType(scores_outputIndex) == nvinfer1::DataType::kFLOAT);
-    assert(_engine_ptr->getBindingDataType(descriptors_outputIndex) == nvinfer1::DataType::kFLOAT);
+        auto cPa = torch::relu(convPa->forward(x));
+        auto semi = convPb->forward(cPa); // [B, 65, H/8, W/8]
 
-    // Create cuda streams
-    if (streamsAreCreated == false)
-    {
-        cudaStreamCreateWithFlags(&stream_device, cudaStreamNonBlocking);
-        cudaStreamCreateWithFlags(&stream_input, cudaStreamNonBlocking);
-        cudaStreamCreateWithFlags(&stream_scores, cudaStreamNonBlocking);
-        cudaStreamCreateWithFlags(&stream_descriptors, cudaStreamNonBlocking);
-        streamsAreCreated = true;
+        auto cDa = torch::relu(convDa->forward(x));
+        auto desc = convDb->forward(cDa); // [B, d1, H/8, W/8]
+
+        auto dn = torch::norm(desc, 2, 1);
+        desc = desc.div(torch::unsqueeze(dn, 1));
+
+        semi = torch::softmax(semi, 1);
+        semi = semi.slice(1, 0, 64);
+        semi = semi.permute({0, 2, 3, 1}); // [B, H/8, W/8, 64]
+
+        int Hc = semi.size(1);
+        int Wc = semi.size(2);
+        semi = semi.contiguous().view({-1, Hc, Wc, 8, 8});
+        semi = semi.permute({0, 1, 3, 2, 4});
+        semi = semi.contiguous().view({-1, Hc * 8, Wc * 8}); // [B, H, W]
+
+        std::vector<torch::Tensor> ret;
+        ret.push_back(semi);
+        ret.push_back(desc);
+
+        return ret;
     }
 
-    // Allocate pinned memory
-    // Allocate device memory
-    if (blob == nullptr)
+    SPDetector::SPDetector()
     {
-        cudaMallocAsync(&buffers[dummy_inputIndex], dummy_input_size * sizeof(float), stream_input);
-        cudaHostAlloc((void **)&blob, dummy_input_size * sizeof(float), cudaHostAllocDefault);
-        cudaStreamSynchronize(stream_input);
     }
-    if (scores_output == nullptr)
+
+    void SPDetector::build_model()
     {
-        cudaMallocAsync(&buffers[scores_outputIndex], scores_size * sizeof(float), stream_scores);
-        cudaHostAlloc((void **)&scores_output, scores_size * sizeof(float), cudaHostAllocDefault);
-        cudaStreamSynchronize(stream_scores);
+        model = std::make_shared<SuperPoint>();
+        torch::load(model, "./benchmarks/orbslam3_sp_torch/src/original/engines/superpoint_v1.pt");
     }
-    if (descriptors_output == nullptr)
+
+    void SPDetector::detect(cv::Mat &img, bool cuda)
     {
-        cudaMallocAsync(&buffers[descriptors_outputIndex], descriptors_size * sizeof(float), stream_descriptors);
-        cudaHostAlloc((void **)&descriptors_output, descriptors_size * sizeof(float), cudaHostAllocDefault);
-        cudaStreamSynchronize(stream_descriptors);
+        auto x = torch::from_blob(img.clone().data, {1, 1, img.rows, img.cols}, torch::kByte);
+        x = x.to(torch::kFloat) / 255;
+
+        bool use_cuda = cuda && torch::cuda::is_available();
+        torch::DeviceType device_type;
+        if (use_cuda)
+            device_type = torch::kCUDA;
+        else
+            device_type = torch::kCPU;
+        torch::Device device(device_type);
+
+        model->to(device);
+        x = x.set_requires_grad(false);
+        auto out = model->forward(x.to(device));
+
+        mProb = out[0]; // [1, H, W]
+        mDesc = out[1]; // [1, 256, H/8, W/8]
     }
-    // Normalise image and write to pinned memory
-    imnormalize(srcimg, blob);
 
-    // Set input shape
-    _context_ptr->setInputShape(_point_lm_params.input_names[0].c_str(), nvinfer1::Dims4(1, 1, srcimg.rows, srcimg.cols));
-
-    // Copy input to device
-    cudaMemcpyAsync(buffers[dummy_inputIndex], blob, dummy_input_size * sizeof(float), cudaMemcpyHostToDevice, stream_input);
-
-    // For enqueueV3
-    _context_ptr->setInputTensorAddress(_point_lm_params.input_names[0].c_str(), buffers[dummy_inputIndex]);
-    _context_ptr->setTensorAddress(_point_lm_params.output_names[0].c_str(), buffers[scores_outputIndex]);
-    _context_ptr->setTensorAddress(_point_lm_params.output_names[1].c_str(), buffers[descriptors_outputIndex]);
-
-    // Query results from superpoint model
-    cudaDeviceSynchronize();
-    bool status = _context_ptr->enqueueV3(stream_device);
-    cudaDeviceSynchronize();
-    if (!status)
+    void SPDetector::getKeyPoints(std::vector<cv::KeyPoint> &keypoints, float threshold, int height, int width, int border)
     {
-        std::cout << "Superpoint inference error!" << std::endl;
-        return -1;
-    }
-    cudaMemcpyAsync(scores_output, buffers[scores_outputIndex], scores_size * sizeof(float), cudaMemcpyDeviceToHost, stream_scores);
-    cudaMemcpyAsync(descriptors_output, buffers[descriptors_outputIndex], descriptors_size * sizeof(float), cudaMemcpyDeviceToHost, stream_descriptors);
+        torch::Tensor prob = mProb.detach().clone();
+        simpleNMS(prob, 4);
+        prob = prob.squeeze(0);                       // [H, W]
+        auto kpts = torch::nonzero(prob > threshold); // [n_keypoints, 2]  (y, x)
 
-    // Process keypoints
-    cudaStreamSynchronize(stream_scores);
-    int scores_h = srcimg.rows;
-    int scores_w = srcimg.cols;
-    int border = _point_lm_params.border;
-    // keypoints.reserve(scores_h * scores_w);
-    for (int y = border; y < (scores_h - border); y++)
-    {
-        for (int x = border; x < (scores_w - border); x++)
+        std::vector<cv::KeyPoint> keypoints_nms;
+        for (int i = 0; i < kpts.size(0); i++)
         {
-            float score = scores_output[y * scores_w + x];
-            if (score > _point_lm_params.scores_thresh)
-            {
-                keypoints.push_back(cv::KeyPoint(cv::Point(x, y), 1.0, 0.0, score));
+            int y = kpts[i][0].item<int>();
+            int x = kpts[i][1].item<int>();
+            if(x > width-border || x < border || y > height-border || y < border) {
+                continue;
             }
+            float response = prob[y][x].item<float>();
+            keypoints_nms.push_back(cv::KeyPoint(x, y, 1.0, 0.0, response));
         }
+        keypoints = keypoints_nms;
     }
-    int vdt_size = keypoints.size();
 
-    // Process descriptors
-    cudaStreamSynchronize(stream_descriptors);
-    float *desc_channel_sum_sqrts = new float[desc_fea_h * desc_fea_w];
-    for (int dfh = 0; dfh < desc_fea_h; dfh++)
+    void SPDetector::computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints)
     {
-        for (int dfw = 0; dfw < desc_fea_w; dfw++)
+        int h = mProb.squeeze(0).size(0);
+        int w = mProb.squeeze(0).size(1);
+        cv::Mat kpt_mat(keypoints.size(), 2, CV_32F); // [n_keypoints, 2]  (y, x)
+
+        for (size_t i = 0; i < keypoints.size(); i++)
         {
-            float desc_channel_sum_temp = 0.f;
-            for (int dfc = 0; dfc < desc_fea_c; dfc++)
-            {
-                desc_channel_sum_temp += descriptors_output[dfc * desc_fea_w * desc_fea_h + dfh * desc_fea_w + dfw] *
-                                         descriptors_output[dfc * desc_fea_w * desc_fea_h + dfh * desc_fea_w + dfw];
-            }
-            float desc_channel_sum_sqrt = std::sqrt(desc_channel_sum_temp);
-            desc_channel_sum_sqrts[dfh * desc_fea_w + dfw] = desc_channel_sum_sqrt;
-            for (int dfc = 0; dfc < desc_fea_c; dfc++)
-            {
-                descriptors_output[dfc * desc_fea_w * desc_fea_h + dfh * desc_fea_w + dfw] =
-                    descriptors_output[dfc * desc_fea_w * desc_fea_h + dfh * desc_fea_w + dfw] / desc_channel_sum_sqrts[dfh * desc_fea_w + dfw];
-            }
+            kpt_mat.at<float>(i, 0) = (float)keypoints[i].pt.y;
+            kpt_mat.at<float>(i, 1) = (float)keypoints[i].pt.x;
         }
+
+        auto fkpts = torch::from_blob(kpt_mat.data, {keypoints.size(), 2}, torch::kFloat);
+
+        auto grid = torch::zeros({1, 1, fkpts.size(0), 2});                         // [1, 1, n_keypoints, 2]
+        grid[0][0].slice(1, 0, 1) = 2.0 * fkpts.slice(1, 1, 2) / w - 1; // x
+        grid[0][0].slice(1, 1, 2) = 2.0 * fkpts.slice(1, 0, 1) / h - 1; // y
+
+        auto desc = torch::grid_sampler(mDesc, grid, 0, 0, true); // [1, 256, 1, n_keypoints]
+        desc = desc.squeeze(0).squeeze(1);                  // [256, n_keypoints]
+
+        // normalize to 1
+        auto dn = torch::norm(desc, 2, 1);
+        desc = desc.div(torch::unsqueeze(dn, 1));
+
+        desc = desc.transpose(0, 1).contiguous(); // [n_keypoints, 256]
+        desc = desc.to(torch::kCPU);
+
+        cv::Mat desc_mat(cv::Size(desc.size(1), desc.size(0)), CV_32FC1, desc.data<float>());
+
+        descriptors = desc_mat.clone();
     }
-    int s = 8;
-    float *descriptors_output_f = new float[desc_fea_c * vdt_size];
-    float *descriptors_output_sqrt = new float[vdt_size];
-    int count = 0;
 
-    // Interpolation
-    // "256 * H/8 * W/8 to a full image descriptor of 256 * H * W"
-    for (auto _vdt : keypoints)
+    void SPDetector::simpleNMS(torch::Tensor &scores, int nms_radius)
     {
-        float ix = ((_vdt.pt.x - s / 2 + 0.5) / (desc_fea_w * s - s / 2 - 0.5)) * (desc_fea_w - 1);
-        float iy = (_vdt.pt.y - s / 2 + 0.5) / (desc_fea_h * s - s / 2 - 0.5) * (desc_fea_h - 1);
+        assert(nms_radius >= 0);
 
-        int ix_nw = std::floor(ix);
-        int iy_nw = std::floor(iy);
+        torch::Tensor zeros = torch::zeros_like(scores);
+        torch::Tensor maxMask = (scores == torch::max_pool2d(scores, {nms_radius * 2 + 1}, {1}, {nms_radius}));
 
-        int ix_ne = ix_nw + 1;
-        int iy_ne = iy_nw;
-
-        int ix_sw = ix_nw;
-        int iy_sw = iy_nw + 1;
-
-        int ix_se = ix_nw + 1;
-        int iy_se = iy_nw + 1;
-
-        float nw = (ix_se - ix) * (iy_se - iy);
-        float ne = (ix - ix_sw) * (iy_sw - iy);
-        float sw = (ix_ne - ix) * (iy - iy_ne);
-        float se = (ix - ix_nw) * (iy - iy_nw);
-
-        float descriptors_channel_sum_l2 = 0.f;
-        for (int dfc = 0; dfc < desc_fea_c; dfc++)
+        for (int i = 0; i < 2; ++i)
         {
-            float res = 0.f;
-
-            if (lm_tools::within_bounds_2d(iy_nw, ix_nw, desc_fea_h, desc_fea_w))
-            {
-                res += descriptors_output[dfc * desc_fea_h * desc_fea_w + iy_nw * desc_fea_w + ix_nw] * nw;
-            }
-            if (lm_tools::within_bounds_2d(iy_ne, ix_ne, desc_fea_h, desc_fea_w))
-            {
-                res += descriptors_output[dfc * desc_fea_h * desc_fea_w + iy_ne * desc_fea_w + ix_ne] * ne;
-            }
-            if (lm_tools::within_bounds_2d(iy_sw, ix_sw, desc_fea_h, desc_fea_w))
-            {
-                res += descriptors_output[dfc * desc_fea_h * desc_fea_w + iy_sw * desc_fea_w + ix_sw] * sw;
-            }
-            if (lm_tools::within_bounds_2d(iy_se, ix_se, desc_fea_h, desc_fea_w))
-            {
-                res += descriptors_output[dfc * desc_fea_h * desc_fea_w + iy_se * desc_fea_w + ix_se] * se;
-            }
-            descriptors_output_f[dfc * vdt_size + count] = res;
-            descriptors_channel_sum_l2 += res * res;
+            torch::Tensor suppMask = (torch::max_pool2d(maxMask.to(torch::kFloat), {nms_radius * 2 + 1}, {1}, {nms_radius}) > 0);
+            torch::Tensor suppScores = torch::where(suppMask, zeros, scores);
+            torch::Tensor newMaxMask = (suppScores == torch::max_pool2d(suppScores, {nms_radius * 2 + 1}, {1}, {nms_radius}));
+            maxMask = maxMask.logical_or(newMaxMask.logical_and(~suppMask));
         }
-        descriptors_output_sqrt[count] = descriptors_channel_sum_l2;
-        for (int64_t dfc = 0; dfc < desc_fea_c; dfc++)
-        {
-            descriptors_output_f[dfc * vdt_size + count] /= std::sqrt(descriptors_output_sqrt[count]);
-        }
-        count++;
+
+        scores = torch::where(maxMask, scores, zeros);
     }
-
-    delete[] descriptors_output_sqrt;
-    descriptors_output_sqrt = nullptr;
-
-    // channels * number of keypoints
-    descriptors = cv::Mat(desc_fea_c, vdt_size, CV_32F, descriptors_output_f);
-    // Transpose descriptors to get number of keypoints * channels
-    // ORBSLAM-3 expects it to be in this format
-    cv::transpose(descriptors, descriptors);
-
-    return 1;
-}
-
-SuperPoint::SuperPoint()
-{
-    blob = nullptr;
-    scores_output = nullptr;
-    descriptors_output = nullptr;
-    cudaSetDevice(0);
-
-    // Create cuda streams
-    // cudaStreamCreateWithFlags(&stream_device, cudaStreamNonBlocking);
-    // cudaStreamCreateWithFlags(&stream_input, cudaStreamNonBlocking);
-    // cudaStreamCreateWithFlags(&stream_scores, cudaStreamNonBlocking);
-    // cudaStreamCreateWithFlags(&stream_descriptors, cudaStreamNonBlocking);
-
-    _point_lm_params.input_names.push_back("input");
-    _point_lm_params.output_names.push_back("scores");
-    _point_lm_params.output_names.push_back("descriptors");
-    _point_lm_params.dla_core = -1;
-    _point_lm_params.int8 = false;
-    _point_lm_params.fp16 = false;
-    _point_lm_params.batch_size = 1;
-    _point_lm_params.seria = false;
-    _point_lm_params.point_weight_file = "./benchmarks/orbslam3_sp_trt/src/original/engines/superpoint_v1.engine";
-    _point_lm_params.scores_thresh = 0.015;
-    _point_lm_params.border = 16;
-}
-
-SuperPoint::~SuperPoint()
-{
-    if (blob != nullptr)
-    {
-        cudaFreeHost(blob);
-        cudaFree(buffers[0]);
-    }
-    if (scores_output != nullptr)
-    {
-        cudaFreeHost(scores_output);
-        cudaFree(buffers[1]);
-    }
-    if (descriptors_output != nullptr)
-    {
-        cudaFreeHost(descriptors_output);
-        cudaFree(buffers[2]);
-    }
-    if (streamsAreCreated)
-    {
-        cudaStreamDestroy(stream_device);
-        cudaStreamDestroy(stream_input);
-        cudaStreamDestroy(stream_scores);
-        cudaStreamDestroy(stream_descriptors);
-    }
-}
-
-void SuperPoint::imnormalize(cv::Mat &img, float *blob)
-{
-    int img_h = img.rows;
-    int img_w = img.cols;
-    for (int h = 0; h < img_h; h++)
-    {
-        for (int w = 0; w < img_w; w++)
-        {
-            blob[img_w * h + w] = ((float)img.at<uchar>(h, w)) / 255.f;
-        }
-    }
-}
+} // namespace ORB_SLAM

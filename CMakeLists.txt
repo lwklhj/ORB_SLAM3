@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(orbslam3_sp_trt)
+project(orbslam3_sp_torch)
 
 SET(CMAKE_BUILD_TYPE Release)
 
@@ -50,15 +50,8 @@ MESSAGE(${OpenCV_VERSION})
 
 #find_package(Eigen3 REQUIRED)
 find_package(Pangolin REQUIRED)
-
-# cuda
-find_package(CUDA REQUIRED)
-include_directories(/usr/local/cuda/include)
-link_directories(/usr/local/cuda/lib64)
-
-# tensorrt
-include_directories(/usr/include/${CMAKE_LIBRARY_ARCHITECTURE})
-link_directories(/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE})
+set(Torch_DIR "Thirdparty/libtorch/share/cmake/Torch")
+find_package(Torch REQUIRED)
 
 include_directories(
 ${PROJECT_SOURCE_DIR}
@@ -125,10 +118,7 @@ include/CameraModels/KannalaBrandt8.h
 include/OptimizableTypes.h
 include/MLPnPsolver.h
 include/TwoViewReconstruction.h
-include/SuperPoint.h
-include/data_body.h
-include/logging.h
-include/tools.h)
+include/SuperPoint.h)
 
 
 target_link_libraries(${PROJECT_NAME}
@@ -137,11 +127,9 @@ ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
 ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/DBow3/lib/libDBoW3.so
 ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+${TORCH_LIBRARIES}
 -lboost_serialization
 -lcrypto
--lnvinfer
--lnvinfer_plugin
--lcudart
 )
 
 
@@ -210,7 +198,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 #target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
 
 add_library(${PROJECT_NAME}-original SHARED
-        orbslam3_sp_trt_library.cpp
+        orbslam3_sp_torch_library.cpp
         )
 
 target_link_libraries(${PROJECT_NAME}-original
