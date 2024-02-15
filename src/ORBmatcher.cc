@@ -33,8 +33,8 @@ using namespace std;
 namespace ORB_SLAM3
 {
 
-const float ORBmatcher::TH_HIGH = 1.6f;
-const float ORBmatcher::TH_LOW = 0.8f;
+const float ORBmatcher::TH_HIGH = 0.2f;
+const float ORBmatcher::TH_LOW = 0.1f;
 const int ORBmatcher::HISTO_LENGTH = 30;
 
 ORBmatcher::ORBmatcher(float nnratio, bool checkOri): mfNNratio(nnratio), mbCheckOrientation(checkOri)
@@ -574,7 +574,7 @@ int ORBmatcher::SearchByProjection(KeyFrame* pKF, cv::Mat Scw, const vector<MapP
             }
         }
 
-        if(bestDist<=TH_LOW*ratioHamming)
+        if(bestDist<=TH_LOW)
         {
             vpMatched[bestIdx]=pMP;
             nmatches++;
@@ -691,7 +691,7 @@ int ORBmatcher::SearchByProjection(KeyFrame* pKF, cv::Mat Scw, const std::vector
             }
         }
 
-        if(bestDist<=TH_LOW*ratioHamming)
+        if(bestDist<=TH_LOW)
         {
             vpMatched[bestIdx] = pMP;
             vpMatchedKF[bestIdx] = pKFi;
@@ -2176,7 +2176,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
         return nmatches;
     }
 
-int ORBmatcher::SearchByProjection(Frame &CurrentFrame, KeyFrame *pKF, const set<MapPoint*> &sAlreadyFound, const float th , const int ORBdist)
+int ORBmatcher::SearchByProjection(Frame &CurrentFrame, KeyFrame *pKF, const set<MapPoint*> &sAlreadyFound, const float th , const float ORBdist)
 {
     int nmatches = 0;
 
@@ -2348,7 +2348,7 @@ void ORBmatcher::ComputeThreeMaxima(vector<int>* histo, const int L, int &ind1, 
 // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 float ORBmatcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
 {
-    float dist = cv::norm(a, b, cv::NORM_L2);
+    float dist = 0.5 * (1 - a.dot(b));
     return dist;
 }
 

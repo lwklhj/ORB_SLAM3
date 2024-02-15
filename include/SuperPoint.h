@@ -12,8 +12,6 @@ public:
     ~SuperPoint();
     bool initial_point_model();
     size_t forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints, cv::Mat &descriptors);
-    int get_input_h();
-    int get_input_w();
 
 private:
     template <typename T>
@@ -24,8 +22,16 @@ private:
 
 private:
     bool build_model();
-    float *imnormalize(cv::Mat &img);
     void imnormalize(cv::Mat &img, float *blob);
+    void* buffers[3];
+    float *blob;
+    float *scores_output;
+    float *descriptors_output;
+    cudaStream_t stream_device;
+    cudaStream_t stream_input;
+    cudaStream_t stream_scores;
+    cudaStream_t stream_descriptors;
+    bool streamsAreCreated;
 };
 
 #endif

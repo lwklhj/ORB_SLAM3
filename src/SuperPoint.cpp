@@ -66,7 +66,7 @@ bool SuperPoint::initial_point_model()
     bool ret = build_model();
     if (!ret)
     {
-        std::cout << "build point model is failed!" << std::endl;
+        std::cout << "Failed to build superpoint model!" << std::endl;
     }
     return ret;
 }
@@ -83,23 +83,6 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
     int desc_fea_w = srcimg.cols / 8;
     int descriptors_size = 1 * desc_fea_c * desc_fea_h * desc_fea_w;
 
-    // Normalise image and write to pinned memory
-    float *blob(nullptr);
-    cudaHostAlloc((void **)&blob, dummy_input_size * sizeof(float), cudaHostAllocDefault);
-    imnormalize(srcimg, blob);
-    if (blob == nullptr)
-    {
-        std::cout << "imnormalize error! " << std::endl;
-        // dp.status_code = 0;
-        return -1;
-    }
-
-    // Create output arrays
-    float *scores_output;
-    cudaHostAlloc((void **)&scores_output, scores_size * sizeof(float), cudaHostAllocDefault);
-    float *descriptors_output;
-    cudaHostAlloc((void **)&descriptors_output, descriptors_size * sizeof(float), cudaHostAllocDefault);
-
     // Get indexes
     const int dummy_inputIndex = _engine_ptr->getBindingIndex(_point_lm_params.input_names[0].c_str());
     const int scores_outputIndex = _engine_ptr->getBindingIndex(_point_lm_params.output_names[0].c_str());
@@ -108,54 +91,64 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
     assert(_engine_ptr->getBindingDataType(scores_outputIndex) == nvinfer1::DataType::kFLOAT);
     assert(_engine_ptr->getBindingDataType(descriptors_outputIndex) == nvinfer1::DataType::kFLOAT);
 
+    // Create cuda streams
+    if (streamsAreCreated == false)
+    {
+        cudaStreamCreateWithFlags(&stream_device, cudaStreamNonBlocking);
+        cudaStreamCreateWithFlags(&stream_input, cudaStreamNonBlocking);
+        cudaStreamCreateWithFlags(&stream_scores, cudaStreamNonBlocking);
+        cudaStreamCreateWithFlags(&stream_descriptors, cudaStreamNonBlocking);
+        streamsAreCreated = true;
+    }
+
+    // Allocate pinned memory
+    // Allocate device memory
+    if (blob == nullptr)
+    {
+        cudaMallocAsync(&buffers[dummy_inputIndex], dummy_input_size * sizeof(float), stream_input);
+        cudaHostAlloc((void **)&blob, dummy_input_size * sizeof(float), cudaHostAllocDefault);
+        cudaStreamSynchronize(stream_input);
+    }
+    if (scores_output == nullptr)
+    {
+        cudaMallocAsync(&buffers[scores_outputIndex], scores_size * sizeof(float), stream_scores);
+        cudaHostAlloc((void **)&scores_output, scores_size * sizeof(float), cudaHostAllocDefault);
+        cudaStreamSynchronize(stream_scores);
+    }
+    if (descriptors_output == nullptr)
+    {
+        cudaMallocAsync(&buffers[descriptors_outputIndex], descriptors_size * sizeof(float), stream_descriptors);
+        cudaHostAlloc((void **)&descriptors_output, descriptors_size * sizeof(float), cudaHostAllocDefault);
+        cudaStreamSynchronize(stream_descriptors);
+    }
+    // Normalise image and write to pinned memory
+    imnormalize(srcimg, blob);
+
     // Set input shape
     _context_ptr->setInputShape(_point_lm_params.input_names[0].c_str(), nvinfer1::Dims4(1, 1, srcimg.rows, srcimg.cols));
 
-    // Allocate device memory
-    void *buffers[3];
-    cudaMalloc(&buffers[dummy_inputIndex], dummy_input_size * sizeof(float));
-    cudaMalloc(&buffers[scores_outputIndex], scores_size * sizeof(float));
-    cudaMalloc(&buffers[descriptors_outputIndex], descriptors_size * sizeof(float));
-
-    // Create cuda streams
-    cudaStream_t stream[4];
-    for (int i = 0; i < 4; i++)
-    {
-        cudaStreamCreateWithFlags(&stream[i], cudaStreamNonBlocking);
-    }
-
     // Copy input to device
-    cudaMemcpyAsync(buffers[dummy_inputIndex], blob, dummy_input_size * sizeof(float), cudaMemcpyHostToDevice, stream[0]);
-    cudaDeviceSynchronize();
+    cudaMemcpyAsync(buffers[dummy_inputIndex], blob, dummy_input_size * sizeof(float), cudaMemcpyHostToDevice, stream_input);
 
     // For enqueueV3
     _context_ptr->setInputTensorAddress(_point_lm_params.input_names[0].c_str(), buffers[dummy_inputIndex]);
     _context_ptr->setTensorAddress(_point_lm_params.output_names[0].c_str(), buffers[scores_outputIndex]);
     _context_ptr->setTensorAddress(_point_lm_params.output_names[1].c_str(), buffers[descriptors_outputIndex]);
 
-    // Start
-    bool status = _context_ptr->enqueueV3(stream[1]);
+    // Query results from superpoint model
     cudaDeviceSynchronize();
-
-    // delete[] blob;
-    cudaFreeHost(blob);
-    // blob = nullptr;
-
+    bool status = _context_ptr->enqueueV3(stream_device);
+    cudaDeviceSynchronize();
     if (!status)
     {
-        std::cout << "execute ifer error! " << std::endl;
-        // dp.status_code = 0;
+        std::cout << "Superpoint inference error!" << std::endl;
         return -1;
     }
-    cudaMemcpyAsync(scores_output, buffers[scores_outputIndex], scores_size * sizeof(float), cudaMemcpyDeviceToHost, stream[2]);
-    cudaMemcpyAsync(descriptors_output, buffers[descriptors_outputIndex], descriptors_size * sizeof(float), cudaMemcpyDeviceToHost, stream[3]);
-    cudaDeviceSynchronize();
-
-    cudaFreeAsync(buffers[dummy_inputIndex], stream[0]);
-    cudaFreeAsync(buffers[scores_outputIndex], stream[1]);
-    cudaFreeAsync(buffers[descriptors_outputIndex], stream[2]);
+    cudaMemcpyAsync(scores_output, buffers[scores_outputIndex], scores_size * sizeof(float), cudaMemcpyDeviceToHost, stream_scores);
+    cudaMemcpyAsync(descriptors_output, buffers[descriptors_outputIndex], descriptors_size * sizeof(float), cudaMemcpyDeviceToHost, stream_descriptors);
 
     // Process keypoints
+    cudaStreamSynchronize(stream_scores);
     int scores_h = srcimg.rows;
     int scores_w = srcimg.cols;
     int border = _point_lm_params.border;
@@ -171,9 +164,10 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
             }
         }
     }
-    // keypoints.shrink_to_fit();
     int vdt_size = keypoints.size();
 
+    // Process descriptors
+    cudaStreamSynchronize(stream_descriptors);
     float *desc_channel_sum_sqrts = new float[desc_fea_h * desc_fea_w];
     for (int dfh = 0; dfh < desc_fea_h; dfh++)
     {
@@ -255,26 +249,8 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
         count++;
     }
 
-    cudaDeviceSynchronize();
-    for (int i = 0; i < 4; i++)
-    {
-        cudaStreamDestroy(stream[i]);
-    }
-    cudaFreeHost(scores_output);
-    cudaFreeHost(descriptors_output);
-
-    // delete[] scores_output;
-    // delete[] descriptors_output;
-    // scores_output = nullptr;
-    // descriptors_output = nullptr;
     delete[] descriptors_output_sqrt;
     descriptors_output_sqrt = nullptr;
-
-    // dp.descriptors = descriptors_output_f;
-    // dp.desc_h = desc_fea_c;
-    // dp.desc_w = vdt_size;
-    // dp.status_code = 1;
-    // return 1;
 
     // channels * number of keypoints
     descriptors = cv::Mat(desc_fea_c, vdt_size, CV_32F, descriptors_output_f);
@@ -287,7 +263,17 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
 
 SuperPoint::SuperPoint()
 {
+    blob = nullptr;
+    scores_output = nullptr;
+    descriptors_output = nullptr;
     cudaSetDevice(0);
+
+    // Create cuda streams
+    // cudaStreamCreateWithFlags(&stream_device, cudaStreamNonBlocking);
+    // cudaStreamCreateWithFlags(&stream_input, cudaStreamNonBlocking);
+    // cudaStreamCreateWithFlags(&stream_scores, cudaStreamNonBlocking);
+    // cudaStreamCreateWithFlags(&stream_descriptors, cudaStreamNonBlocking);
+
     _point_lm_params.input_names.push_back("input");
     _point_lm_params.output_names.push_back("scores");
     _point_lm_params.output_names.push_back("descriptors");
@@ -297,39 +283,34 @@ SuperPoint::SuperPoint()
     _point_lm_params.batch_size = 1;
     _point_lm_params.seria = false;
     _point_lm_params.point_weight_file = "./benchmarks/orbslam3_sp_trt/src/original/engines/superpoint_v1.engine";
-    // _point_lm_params.input_h = 240;
-    // _point_lm_params.input_w = 320;
-    _point_lm_params.scores_thresh = 0.01;
+    _point_lm_params.scores_thresh = 0.015;
     _point_lm_params.border = 16;
 }
 
 SuperPoint::~SuperPoint()
 {
-}
-
-// int SuperPoint::get_input_h()
-// {
-//     return _point_lm_params.input_h;
-// }
-
-// int SuperPoint::get_input_w()
-// {
-//     return _point_lm_params.input_w;
-// }
-
-float *SuperPoint::imnormalize(cv::Mat &img)
-{
-    int img_h = img.rows;
-    int img_w = img.cols;
-    float *blob = new float[img_h * img_w];
-    for (int h = 0; h < img_h; h++)
+    if (blob != nullptr)
     {
-        for (int w = 0; w < img_w; w++)
-        {
-            blob[img_w * h + w] = ((float)img.at<uchar>(h, w)) / 255.f;
-        }
+        cudaFreeHost(blob);
+        cudaFree(buffers[0]);
     }
-    return blob;
+    if (scores_output != nullptr)
+    {
+        cudaFreeHost(scores_output);
+        cudaFree(buffers[1]);
+    }
+    if (descriptors_output != nullptr)
+    {
+        cudaFreeHost(descriptors_output);
+        cudaFree(buffers[2]);
+    }
+    if (streamsAreCreated)
+    {
+        cudaStreamDestroy(stream_device);
+        cudaStreamDestroy(stream_input);
+        cudaStreamDestroy(stream_scores);
+        cudaStreamDestroy(stream_descriptors);
+    }
 }
 
 void SuperPoint::imnormalize(cv::Mat &img, float *blob)
