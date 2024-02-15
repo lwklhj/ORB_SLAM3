@@ -407,7 +407,7 @@ namespace ORB_SLAM3
 
     ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
                                int _iniThFAST, int _minThFAST):
-            nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(_nlevels),
+            nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(1),
             iniThFAST(_iniThFAST), minThFAST(_minThFAST)
     {
         mvScaleFactor.resize(nlevels);
