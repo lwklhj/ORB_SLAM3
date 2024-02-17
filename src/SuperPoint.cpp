@@ -283,7 +283,7 @@ SuperPoint::SuperPoint()
     _point_lm_params.batch_size = 1;
     _point_lm_params.seria = false;
     _point_lm_params.point_weight_file = "./benchmarks/orbslam3_sp_trt/src/original/engines/superpoint_v1.engine";
-    _point_lm_params.scores_thresh = 0.015;
+    _point_lm_params.scores_thresh = 0.01;
     _point_lm_params.border = 16;
 }
 
