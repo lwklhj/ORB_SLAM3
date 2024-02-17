@@ -263,6 +263,7 @@ size_t SuperPoint::forward(cv::Mat &srcimg, std::vector<cv::KeyPoint> &keypoints
 
 SuperPoint::SuperPoint()
 {
+    streamsAreCreated = false;
     blob = nullptr;
     scores_output = nullptr;
     descriptors_output = nullptr;
