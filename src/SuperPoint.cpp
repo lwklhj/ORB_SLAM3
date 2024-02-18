@@ -136,7 +136,8 @@ namespace ORB_SLAM3
         {
             int y = kpts[i][0].item<int>();
             int x = kpts[i][1].item<int>();
-            if(x > width-border || x < border || y > height-border || y < border) {
+            if (x > width - border || x < border || y > height - border || y < border)
+            {
                 continue;
             }
             float response = prob[y][x].item<float>();
@@ -159,25 +160,26 @@ namespace ORB_SLAM3
 
         auto fkpts = torch::from_blob(kpt_mat.data, {keypoints.size(), 2}, torch::kFloat);
 
-        auto grid = torch::zeros({1, 1, fkpts.size(0), 2});                         // [1, 1, n_keypoints, 2]
+        auto grid = torch::zeros({1, 1, fkpts.size(0), 2});             // [1, 1, n_keypoints, 2]
         grid[0][0].slice(1, 0, 1) = 2.0 * fkpts.slice(1, 1, 2) / w - 1; // x
         grid[0][0].slice(1, 1, 2) = 2.0 * fkpts.slice(1, 0, 1) / h - 1; // y
 
-        if(cuda) {
+        if (cuda)
+        {
             grid = grid.to(torch::kCUDA);
         }
-        else {
+        else
+        {
             mDesc = mDesc.to(torch::kCPU);
         }
         auto desc = torch::grid_sampler(mDesc, grid, 0, 0, true); // [1, 256, 1, n_keypoints]
-        desc = desc.squeeze(0).squeeze(1);                  // [256, n_keypoints]
-
-        // normalize to 1
-        auto dn = torch::norm(desc, 2, 1);
-        desc = desc.div(torch::unsqueeze(dn, 1));
-
-        desc = desc.transpose(0, 1).contiguous(); // [n_keypoints, 256]
+        desc = desc.squeeze(0).squeeze(1);                        // [256, n_keypoints]
+        desc = desc.transpose(0, 1).contiguous();                 // [n_keypoints, 256]
         desc = desc.to(torch::kCPU);
+
+        // Normalize each row
+        torch::Tensor norm = torch::norm(desc, 2, 1, true);
+        desc = desc / norm;
 
         cv::Mat desc_mat(cv::Size(desc.size(1), desc.size(0)), CV_32FC1, desc.data<float>());
 

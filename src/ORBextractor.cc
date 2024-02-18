@@ -869,15 +869,15 @@ namespace ORB_SLAM3
         // temp vectors
         detector.detect(image, true);
         vector<cv::KeyPoint> keypoints;
-        detector.getKeyPoints(keypoints, 0.015, image.rows, image.cols, 16);
+        detector.getKeyPoints(keypoints, 0.01, image.rows, image.cols, 16);
         Mat desc;
-        detector.computeDescriptors(desc, keypoints, true);
+        detector.computeDescriptors(desc, keypoints, false);
 
         int nkeypoints = keypoints.size();
         _keypoints = vector<cv::KeyPoint>(nkeypoints);
         int monoIndex = 0, stereoIndex = nkeypoints-1;
-        int i = 0;
 
+        int i = 0;
         if(nkeypoints == 0)
             _descriptors.release();
         else {
