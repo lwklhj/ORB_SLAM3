@@ -826,7 +826,7 @@ void Frame::ComputeStereoMatches()
     const float maxD = mbf/minZ;
 
     // For each left keypoint search a match in the right image
-    vector<pair<int, int> > vDistIdx;
+    vector<pair<float, int> > vDistIdx;
     vDistIdx.reserve(N);
 
     for(int iL=0; iL<N; iL++)
