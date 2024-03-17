@@ -1,3 +1,8 @@
+/**
+ * Original code from https://github.com/KinglittleQ/SuperPoint_SLAM
+ * https://github.com/introlab/rtabmap
+ */
+
 #ifndef SUPERPOINT_H
 #define SUPERPOINT_H
 
@@ -43,18 +48,34 @@ namespace ORB_SLAM3
   {
   public:
     SPDetector();
-    void build_model();
-    void detect(cv::Mat &image, bool cuda);
-    void getKeyPoints(std::vector<cv::KeyPoint> &keypoints, float threshold, int height, int width, int border);
-    void computeDescriptors(cv::Mat &descriptors, const std::vector<cv::KeyPoint> &keypoints, bool cuda);
-    void simpleNMS(torch::Tensor &scores, int nms_radius);
+    SPDetector(const std::string &modelPath, float threshold = 0.2f, bool nms = true, int minDistance = 4, bool cuda = false);
+    virtual ~SPDetector();
+    std::vector<cv::KeyPoint> detect(const cv::Mat &img, const cv::Mat &mask = cv::Mat());
+    cv::Mat compute(const std::vector<cv::KeyPoint> &keypoints);
+
+    void setThreshold(float threshold) { threshold_ = threshold; }
+    void SetNMS(bool enabled) { nms_ = enabled; }
+    void setMinDistance(float minDistance) { minDistance_ = minDistance; }
+    void NMS(
+        const std::vector<cv::KeyPoint> &ptsIn,
+        const cv::Mat &descriptorsIn,
+        std::vector<cv::KeyPoint> &ptsOut,
+        cv::Mat &descriptorsOut,
+        int border, int dist_thresh, int img_width, int img_height);
 
   private:
-    std::shared_ptr<SuperPoint> model;
-    torch::Tensor mProb;
-    torch::Tensor mDesc;
+    std::shared_ptr<SuperPoint> model_;
+    torch::Tensor prob_;
+    torch::Tensor desc_;
+
+    float threshold_;
+    bool nms_;
+    int minDistance_;
+    bool cuda_;
+
+    bool detected_;
   };
 
-} // ORB_SLAM
+}
 
 #endif
