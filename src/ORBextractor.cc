@@ -467,7 +467,7 @@ namespace ORB_SLAM3
         }
         
         // Initialise deep learning model
-        detector = SPDetector("engines/superpoint_v1.pt", 0.01, true, 4, true);
+        detector = SPDetector("./benchmarks/orbslam3_sp_torch/src/original/engines/superpoint_v1.pt", 0.01, true, 4, true);
     }
 
     static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
