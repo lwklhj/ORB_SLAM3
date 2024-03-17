@@ -50,6 +50,8 @@ MESSAGE(${OpenCV_VERSION})
 
 #find_package(Eigen3 REQUIRED)
 find_package(Pangolin REQUIRED)
+set(USE_CUDNN ON)
+set(CAFFE2_USE_CUDNN ON)
 set(Torch_DIR "Thirdparty/libtorch/share/cmake/Torch")
 find_package(Torch REQUIRED)
 
