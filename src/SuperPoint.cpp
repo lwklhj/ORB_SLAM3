@@ -226,8 +226,9 @@ namespace ORB_SLAM3
             auto desc = torch::grid_sampler(desc_, grid, 0, 0, true); // [1, 256, 1, n_keypoints]
 
             // normalize to 1
-            desc = torch::nn::functional::normalize(desc.reshape({1, desc_.size(1), -1})); //[1, 256, n_keypoints]
-            desc = desc.squeeze();                                                         //[256, n_keypoints]
+            desc = desc.squeeze(2);
+            desc = torch::nn::functional::normalize(desc);                                 //[1, 256, n_keypoints]
+            desc = desc.squeeze(0);                                                        //[256, n_keypoints]
             desc = desc.transpose(0, 1).contiguous();                                      //[n_keypoints, 256]
 
             if (cuda_)
